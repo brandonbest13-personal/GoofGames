@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Neon Artillery</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    
+    body {
+      background-color: #020617;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    #game-container {
+      position: relative;
+      background: #0f172a;
+      border: 4px solid #334155;
+      border-radius: 12px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.8);
+      width: 100%;
+      max-width: 800px;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      background: linear-gradient(180deg, #020617 0%, #1e293b 100%);
+      border-radius: 8px;
+      cursor: crosshair;
+    }
+
+    /* HUD */
+    #hud {
+      position: absolute;
+      top: 0; left: 0; width: 100%;
+      padding: 10px;
+      display: flex;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+
+    .player-hud {
+      background: rgba(15, 23, 42, 0.85);
+      border: 2px solid #334155;
+      padding: 10px;
+      border-radius: 8px;
+      width: 36%;
+      pointer-events: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    
+    .p1-hud { border-color: #38bdf8; box-shadow: 0 0 10px rgba(56, 189, 248, 0.2); }
+    .p2-hud { border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); }
+
+    .name-row { display: flex; justify-content: space-between; font-weight: 800; font-size: 13px; text-transform: uppercase; }
+    .p1-name { color: #38bdf8; }
+    .p2-name { color: #ef4444; }
+
+    /* Resource Bars */
+    .bar-wrap { display: flex; flex-direction: column; gap: 4px; margin-bottom: 2px; }
+    .bar { width: 100%; height: 8px; background: #000; border: 1px solid #334155; border-radius: 4px; overflow: hidden; position: relative; }
+    .fill { height: 100%; transition: width 0.1s linear; }
+    .hp-fill.p1 { background: #38bdf8; }
+    .hp-fill.p2 { background: #ef4444; }
+    .fuel-fill { background: #eab308; }
+    
+    /* Controls Area */
+    .controls-row { display: flex; gap: 8px; }
+    .weapons { display: flex; gap: 4px; flex: 1; }
+    .movement { display: flex; gap: 4px; }
+
+    .btn-wep, .btn-move {
+      padding: 6px 2px; font-size: 10px; font-weight: bold;
+      background: #1e293b; color: #94a3b8; border: 2px solid #334155; border-radius: 4px;
+      cursor: pointer; text-transform: uppercase; flex: 1;
+    }
+    
+    .btn-move { flex: none; width: 32px; background: #334155; color: #fff; font-size: 12px; }
+    .btn-move:active:not(:disabled) { background: #eab308; border-color: #ca8a04; }
+
+    .btn-wep.active { background: #a855f7; border-color: #d8b4fe; color: #fff; box-shadow: 0 0 8px #a855f7; }
+    .btn-wep:disabled, .btn-move:disabled { opacity: 0.3; cursor: not-allowed; }
+
+    #turn-announcer {
+      position: absolute;
+      top: 15px; left: 50%;
+      transform: translateX(-50%);
+      font-size: 18px; font-weight: 900;
+      text-transform: uppercase; letter-spacing: 2px;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.8);
+    }
+
+    /* Start/Game Over Modals */
+    .modal {
+      position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(2, 6, 23, 0.9);
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      border-radius: 8px; z-index: 20; text-align: center;
+    }
+    .hidden { display: none !important; }
+
+    .modal h1 { font-size: 36px; margin-bottom: 10px; color: #a855f7; text-transform: uppercase; letter-spacing: 2px; }
+    .modal p { font-size: 13px; color: #94a3b8; margin-bottom: 30px; max-width: 450px; line-height: 1.5; }
+    
+    .btn-main {
+      background: #38bdf8; color: #020617; border: none; padding: 15px 30px;
+      font-size: 16px; font-weight: 900; border-radius: 8px; cursor: pointer;
+      text-transform: uppercase; margin: 10px; width: 200px;
+    }
+    .btn-main:hover { background: #7dd3fc; }
+    .btn-red { background: #ef4444; }
+    .btn-red:hover { background: #fca5a5; }
+
+  </style>
+</head>
+<body>
+
+<div id="game-container">
+  <canvas id="gameCanvas" width="800" height="500"></canvas>
+  
+  <div id="hud" class="hidden">
+    <!-- P1 HUD -->
+    <div class="player-hud p1-hud">
+      <div class="name-row"><span class="p1-name">Player 1</span><span id="p1-hp-val">100 HP</span></div>
+      <div class="bar-wrap">
+        <div class="bar"><div class="fill hp-fill p1" id="p1-hp-bar" style="width:100%"></div></div>
+        <div class="bar"><div class="fill fuel-fill" id="p1-fuel-bar" style="width:100%"></div></div>
+      </div>
+      <div class="controls-row">
+        <div class="weapons">
+          <button class="btn-wep active" data-p="1" data-w="std">STD (∞)</button>
+          <button class="btn-wep" data-p="1" data-w="dirt">DIRT (<span id="p1-w-dirt">2</span>)</button>
+          <button class="btn-wep" data-p="1" data-w="cluster">CLST (<span id="p1-w-cluster">2</span>)</button>
+        </div>
+        <div class="movement">
+          <button class="btn-move" data-p="1" data-dir="-1">◀</button>
+          <button class="btn-move" data-p="1" data-dir="1">▶</button>
+        </div>
+      </div>
+    </div>
+    
+    <div id="turn-announcer">P1 TURN</div>
+
+    <!-- P2 HUD -->
+    <div class="player-hud p2-hud">
+      <div class="name-row"><span id="p2-hp-val">100 HP</span><span class="p2-name" id="p2-label">Player 2</span></div>
+      <div class="bar-wrap">
+        <div class="bar"><div class="fill hp-fill p2" id="p2-hp-bar" style="width:100%; float:right;"></div></div>
+        <div class="bar"><div class="fill fuel-fill" id="p2-fuel-bar" style="width:100%; float:right;"></div></div>
+      </div>
+      <div class="controls-row">
+        <div class="movement">
+          <button class="btn-move" data-p="2" data-dir="-1">◀</button>
+          <button class="btn-move" data-p="2" data-dir="1">▶</button>
+        </div>
+        <div class="weapons">
+          <button class="btn-wep active" data-p="2" data-w="std">STD (∞)</button>
+          <button class="btn-wep" data-p="2" data-w="dirt">DIRT (<span id="p2-w-dirt">2</span>)</button>
+          <button class="btn-wep" data-p="2" data-w="cluster">CLST (<span id="p2-w-cluster">2</span>)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="start-modal" class="modal">
+    <h1>Neon Artillery</h1>
+    <p>Hold ◀ / ▶ to burn fuel and position your tank.<br>Drag backwards from your tank to aim. Release to fire.<br><strong>Cluster Shot:</strong> Tap the screen mid-air to split the shell.</p>
+    <button class="btn-main" id="btn-pvp">Pass & Play</button>
+    <button class="btn-main btn-red" id="btn-cpu">VS CPU</button>
+  </div>
+
+  <div id="gameover-modal" class="modal hidden">
+    <h1 id="winner-text">P1 WINS!</h1>
+    <button class="btn-main" id="btn-restart">Main Menu</button>
+  </div>
+</div>
+
+<script>
+  // --- Audio Engine ---
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  
+  function playSound(type) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    const now = audioCtx.currentTime;
+
+    if (type === 'fire') {
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(150, now);
+      osc.frequency.exponentialRampToValueAtTime(300, now + 0.2);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+      osc.start(now); osc.stop(now + 0.2);
+    } else if (type === 'explode') {
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(100, now);
+      osc.frequency.exponentialRampToValueAtTime(10, now + 0.4);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+      osc.start(now); osc.stop(now + 0.4);
+    } else if (type === 'split') {
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(600, now);
+      osc.frequency.exponentialRampToValueAtTime(800, now + 0.1);
+      gain.gain.setValueAtTime(0.1, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+      osc.start(now); osc.stop(now + 0.1);
+    }
+  }
+
+  // --- Engine Constants & State ---
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width;
+  const H = canvas.height;
+  const GRAVITY = 0.15;
+  const MOVE_SPEED = 1.0;
+  const FUEL_DRAIN = 0.4;
+  const MAX_CLIMB = 4; // Max pixels of vertical incline a tank can drive over per frame
+
+  let state = 'MENU'; // MENU, AIMING, FIRING, GAMEOVER
+  let vsCPU = false;
+  let currentTurn = 1;
+  
+  let terrain = new Array(W);
+  let tanks = [];
+  let activeProjectiles = [];
+  let particles = [];
+
+  let isDragging = false;
+  let dragStart = {x: 0, y: 0};
+  let dragCurrent = {x: 0, y: 0};
+  
+  let selectedWeapon = { 1: 'std', 2: 'std' };
+  let inventory = { 1: { dirt: 2, cluster: 2 }, 2: { dirt: 2, cluster: 2 } };
+
+  const els = {
+    hud: document.getElementById('hud'),
+    startModal: document.getElementById('start-modal'),
+    overModal: document.getElementById('gameover-modal'),
+    turnAnnounce: document.getElementById('turn-announcer'),
+    wepBtns: document.querySelectorAll('.btn-wep'),
+    moveBtns: document.querySelectorAll('.btn-move'),
+    bars: {
+      hp1: document.getElementById('p1-hp-bar'),
+      hp2: document.getElementById('p2-hp-bar'),
+      fuel1: document.getElementById('p1-fuel-bar'),
+      fuel2: document.getElementById('p2-fuel-bar')
+    },
+    vals: {
+      hp1: document.getElementById('p1-hp-val'),
+      hp2: document.getElementById('p2-hp-val')
+    }
+  };
+
+  // --- Initialization ---
+  function initGame(cpuMode) {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    vsCPU = cpuMode;
+    document.getElementById('p2-label').innerText = vsCPU ? "CPU" : "Player 2";
+    
+    for (let x = 0; x < W; x++) {
+      let height = Math.sin(x * 0.01) * 50 + Math.sin(x * 0.005) * 100 + 250;
+      terrain[x] = H - height; 
+    }
+
+    tanks = [
+      { id: 1, x: 100, y: terrain[100], hp: 100, fuel: 100, moving: 0, color: '#38bdf8' },
+      { id: 2, x: 700, y: terrain[700], hp: 100, fuel: 100, moving: 0, color: '#ef4444' }
+    ];
+
+    inventory = { 1: { dirt: 2, cluster: 2 }, 2: { dirt: 2, cluster: 2 } };
+    selectedWeapon = { 1: 'std', 2: 'std' };
+    activeProjectiles = [];
+    particles = [];
+    currentTurn = 1;
+    state = 'AIMING';
+    
+    els.startModal.classList.add('hidden');
+    els.overModal.classList.add('hidden');
+    els.hud.classList.remove('hidden');
+    
+    updateHUD();
+  }
+
+  function updateHUD() {
+    els.vals.hp1.innerText = `${Math.max(0, Math.floor(tanks[0].hp))} HP`;
+    els.bars.hp1.style.width = `${Math.max(0, tanks[0].hp)}%`;
+    els.bars.fuel1.style.width = `${Math.max(0, tanks[0].fuel)}%`;
+    
+    els.vals.hp2.innerText = `${Math.max(0, Math.floor(tanks[1].hp))} HP`;
+    els.bars.hp2.style.width = `${Math.max(0, tanks[1].hp)}%`;
+    els.bars.fuel2.style.width = `${Math.max(0, tanks[1].fuel)}%`;
+
+    document.getElementById('p1-w-dirt').innerText = inventory[1].dirt;
+    document.getElementById('p1-w-cluster').innerText = inventory[1].cluster;
+    document.getElementById('p2-w-dirt').innerText = inventory[2].dirt;
+    document.getElementById('p2-w-cluster').innerText = inventory[2].cluster;
+
+    els.turnAnnounce.innerText = currentTurn === 1 ? "P1 Turn" : (vsCPU ? "CPU Turn" : "P2 Turn");
+    els.turnAnnounce.style.color = currentTurn === 1 ? '#38bdf8' : '#ef4444';
+
+    // Lock/Unlock Buttons
+    els.wepBtns.forEach(btn => {
+      const p = parseInt(btn.dataset.p);
+      const w = btn.dataset.w;
+      if (p !== currentTurn || (vsCPU && currentTurn === 2) || state !== 'AIMING') {
+        btn.disabled = true;
+      } else {
+        btn.disabled = (w !== 'std' && inventory[p][w] <= 0);
+      }
+      btn.classList.toggle('active', selectedWeapon[p] === w);
+    });
+
+    els.moveBtns.forEach(btn => {
+      const p = parseInt(btn.dataset.p);
+      btn.disabled = (p !== currentTurn || (vsCPU && currentTurn === 2) || state !== 'AIMING' || tanks[p-1].fuel <= 0);
+    });
+  }
+
+  // --- Input Handling ---
+  
+  // Weapon Selection
+  els.wepBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const p = parseInt(e.target.dataset.p);
+      if (p === currentTurn && state === 'AIMING') {
+        selectedWeapon[p] = e.target.dataset.w;
+        updateHUD();
+      }
+    });
+  });
+
+  // Movement Controls
+  const handleMoveStart = (e) => {
+    if (e.cancelable) e.preventDefault(); // Prevent touch-scrolling
+    const p = parseInt(e.target.dataset.p);
+    if (p === currentTurn && state === 'AIMING' && (!vsCPU || p === 1)) {
+      tanks[p-1].moving = parseInt(e.target.dataset.dir);
+    }
+  };
+  const handleMoveStop = (e) => {
+    const p = parseInt(e.target.dataset.p);
+    if (p) tanks[p-1].moving = 0;
+  };
+
+  els.moveBtns.forEach(btn => {
+    btn.addEventListener('mousedown', handleMoveStart);
+    btn.addEventListener('touchstart', handleMoveStart, {passive: false});
+    
+    btn.addEventListener('mouseup', handleMoveStop);
+    btn.addEventListener('mouseleave', handleMoveStop);
+    btn.addEventListener('touchend', handleMoveStop);
+  });
+
+  // Aiming & Firing (Canvas Overlay)
+  canvas.addEventListener('pointerdown', (e) => {
+    if (state === 'FIRING') {
+      const activeClusters = activeProjectiles.filter(p => p.type === 'cluster' && !p.hasSplit);
+      if (activeClusters.length > 0) {
+        playSound('split');
+        let newProjs = [];
+        activeClusters.forEach(p => {
+          p.hasSplit = true;
+          newProjs.push({ x: p.x, y: p.y, vx: p.vx - 1.5, vy: p.vy - 1, type: 'std', radius: 15, isSub: true });
+          newProjs.push({ x: p.x, y: p.y, vx: p.vx,       vy: p.vy - 1, type: 'std', radius: 15, isSub: true });
+          newProjs.push({ x: p.x, y: p.y, vx: p.vx + 1.5, vy: p.vy - 1, type: 'std', radius: 15, isSub: true });
+        });
+        activeProjectiles = newProjs;
+      }
+      return;
+    }
+
+    if (state !== 'AIMING' || (vsCPU && currentTurn === 2)) return;
+
+    const rect = canvas.getBoundingClientRect();
+    dragStart = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    
+    const tank = tanks[currentTurn - 1];
+    if (Math.hypot(dragStart.x - tank.x, dragStart.y - (tank.y - 10)) < 50) {
+      isDragging = true;
+      dragCurrent = { ...dragStart };
+    }
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    if (isDragging) {
+      const rect = canvas.getBoundingClientRect();
+      dragCurrent = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    }
+  });
+
+  canvas.addEventListener('pointerup', () => {
+    if (isDragging) {
+      isDragging = false;
+      const dx = dragStart.x - dragCurrent.x;
+      const dy = dragStart.y - dragCurrent.y;
+      if (Math.hypot(dx, dy) > 10) {
+        tanks[currentTurn - 1].moving = 0; // Force stop moving when firing
+        fireProjectile(dx * 0.15, dy * 0.15);
+      }
+    }
+  });
+
+  function fireProjectile(vx, vy) {
+    playSound('fire');
+    const tank = tanks[currentTurn - 1];
+    const wType = selectedWeapon[currentTurn];
+    
+    if (wType !== 'std') inventory[currentTurn][wType]--;
+    
+    activeProjectiles.push({
+      x: tank.x, y: tank.y - 15,
+      vx: vx, vy: vy,
+      type: wType, radius: wType === 'std' ? 25 : (wType === 'dirt' ? 35 : 40),
+      hasSplit: false
+    });
+    
+    state = 'FIRING';
+    updateHUD();
+  }
+
+  // --- CPU Logic ---
+  function executeCPU() {
+    if (state !== 'AIMING' || currentTurn !== 2) return;
+
+    // Pick weapon
+    let w = 'std';
+    if (inventory[2].cluster > 0 && Math.random() > 0.5) w = 'cluster';
+    else if (inventory[2].dirt > 0 && Math.random() > 0.8) w = 'dirt';
+    selectedWeapon[2] = w;
+    updateHUD();
+
+    // Random Movement Repositioning
+    let moveDir = Math.random() > 0.5 ? 1 : -1;
+    if (tanks[1].x < 100) moveDir = 1;
+    if (tanks[1].x > W - 100) moveDir = -1;
+    
+    tanks[1].moving = moveDir;
+
+    // Wait for movement, then stop and fire
+    setTimeout(() => {
+      tanks[1].moving = 0;
+      
+      const cpu = tanks[1];
+      const target = tanks[0];
+      const time = 80;
+      
+      let vx = (target.x - cpu.x) / time;
+      let vy = ((target.y - cpu.y) - 0.5 * GRAVITY * time * time) / time;
+      
+      vx += (Math.random() - 0.5) * 1.5;
+      vy += (Math.random() - 0.5) * 1.5;
+
+      fireProjectile(vx, vy);
+
+      // Auto-split cluster near apex
+      if (w === 'cluster') {
+        setTimeout(() => {
+          if (activeProjectiles.length > 0) {
+            canvas.dispatchEvent(new Event('pointerdown'));
+          }
+        }, (time / 2) * 16);
+      }
+    }, 500 + Math.random() * 800);
+  }
+
+  // --- Physics & Terrain ---
+  function resolveExplosion(cx, cy, radius, type) {
+    playSound('explode');
+    spawnParticles(cx, cy, type === 'dirt' ? '#8b4513' : '#f59e0b', 30);
+
+    for (let x = Math.floor(cx - radius); x <= Math.ceil(cx + radius); x++) {
+      if (x >= 0 && x < W) {
+        let dx = x - cx;
+        let dy = Math.sqrt(radius * radius - dx * dx); 
+        
+        if (type === 'dirt') {
+          terrain[x] -= dy; 
+        } else {
+          if (terrain[x] < cy + dy) terrain[x] = cy + dy;
+        }
+      }
+    }
+
+    if (type !== 'dirt') {
+      tanks.forEach(tank => {
+        let dist = Math.hypot(tank.x - cx, tank.y - cy);
+        if (dist < radius + 15) {
+          let dmg = Math.max(0, 30 * (1 - dist / (radius + 15)));
+          tank.hp -= dmg;
+          
+          if (tank.hp <= 0 && state !== 'GAMEOVER') {
+            state = 'GAMEOVER';
+            setTimeout(() => {
+              document.getElementById('winner-text').innerText = tank.id === 1 ? "P2 WINS!" : "P1 WINS!";
+              els.overModal.classList.remove('hidden');
+            }, 1000);
+          }
+        }
+      });
+      if (state !== 'GAMEOVER') updateHUD();
+    }
+  }
+
+  function spawnParticles(x, y, color, count) {
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        x: x, y: y,
+        vx: (Math.random() - 0.5) * 10,
+        vy: (Math.random() - 0.5) * 10 - 2,
+        life: 1.0, color: color
+      });
+    }
+  }
+
+  // --- Main Loop ---
+  function loop() {
+    
+    // 1. Tank Movement & Fuel Handling
+    tanks.forEach(tank => {
+      // Lateral Movement
+      if (tank.moving !== 0 && tank.fuel > 0 && state === 'AIMING') {
+        let newX = tank.x + (tank.moving * MOVE_SPEED);
+        
+        if (newX >= 15 && newX <= W - 15) {
+          let currentY = tank.y;
+          let targetY = terrain[Math.floor(newX)];
+          
+          // Collision: Can only drive if slope is not a sheer cliff
+          if (targetY >= currentY - MAX_CLIMB) {
+            tank.x = newX;
+            tank.fuel -= FUEL_DRAIN;
+            // Direct DOM update for fuel bar to keep it smooth
+            const bar = tank.id === 1 ? els.bars.fuel1 : els.bars.fuel2;
+            bar.style.width = `${Math.max(0, tank.fuel)}%`;
+            
+            // Auto-stop if out of fuel
+            if (tank.fuel <= 0) {
+              tank.moving = 0;
+              updateHUD(); 
+            }
+          }
+        }
+      }
+
+      // Gravity & Ground Snapping
+      let ty = terrain[Math.floor(tank.x)];
+      if (tank.y < ty) {
+        tank.y += 4; // Falling speed
+        if (tank.y > ty) tank.y = ty;
+      } else if (tank.y > ty) {
+        tank.y = ty; // Snapping up (e.g. climbing or dirt bomb)
+      }
+    });
+
+    // 2. Projectile Physics
+    if (state === 'FIRING') {
+      let pendingRemoval = [];
+      activeProjectiles.forEach((p, index) => {
+        p.vy += GRAVITY;
+        p.x += p.vx;
+        p.y += p.vy;
+
+        let tx = Math.floor(p.x);
+        if (tx < 0 || tx >= W || p.y >= terrain[tx] || p.y > H + 50) {
+          if (p.y <= H + 50) resolveExplosion(p.x, p.y, p.radius, p.type);
+          pendingRemoval.push(index);
+        }
+      });
+
+      for (let i = pendingRemoval.length - 1; i >= 0; i--) {
+        activeProjectiles.splice(pendingRemoval[i], 1);
+      }
+
+      if (activeProjectiles.length === 0) {
+        currentTurn = currentTurn === 1 ? 2 : 1;
+        selectedWeapon[currentTurn] = 'std';
+        if (state !== 'GAMEOVER') state = 'AIMING';
+        updateHUD();
+        if (vsCPU && currentTurn === 2 && state !== 'GAMEOVER') executeCPU();
+      }
+    }
+
+    // 3. Particles Update
+    for (let i = particles.length - 1; i >= 0; i--) {
+      let p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.2;
+      p.life -= 0.03;
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    // 4. Rendering
+    ctx.clearRect(0, 0, W, H);
+
+    ctx.fillStyle = '#1e293b';
+    ctx.beginPath();
+    ctx.moveTo(0, H);
+    for (let x = 0; x < W; x++) ctx.lineTo(x, terrain[x]);
+    ctx.lineTo(W, H);
+    ctx.fill();
+    ctx.strokeStyle = '#4ade80';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    tanks.forEach(tank => {
+      if (tank.hp > 0) {
+        ctx.fillStyle = tank.color;
+        ctx.fillRect(tank.x - 15, tank.y - 8, 30, 8);
+        ctx.fillRect(tank.x - 8, tank.y - 14, 16, 6);
+        
+        ctx.beginPath();
+        ctx.moveTo(tank.x, tank.y - 12);
+        let dir = tank.id === 1 ? 1 : -1;
+        ctx.lineTo(tank.x + (15 * dir), tank.y - 20);
+        ctx.strokeStyle = tank.color;
+        ctx.lineWidth = 4;
+        ctx.stroke();
+        
+        ctx.fillStyle = '#020617';
+        ctx.fillRect(tank.x - 18, tank.y - 2, 36, 4);
+      }
+    });
+
+    if (isDragging && state === 'AIMING') {
+      const dx = dragStart.x - dragCurrent.x;
+      const dy = dragStart.y - dragCurrent.y;
+      const tank = tanks[currentTurn - 1];
+      
+      let simX = tank.x;
+      let simY = tank.y - 15;
+      let simVx = dx * 0.15;
+      let simVy = dy * 0.15;
+
+      ctx.beginPath();
+      ctx.moveTo(simX, simY);
+      for (let i = 0; i < 20; i++) {
+        simX += simVx * 3;
+        simY += simVy * 3;
+        simVy += GRAVITY * 3;
+        ctx.lineTo(simX, simY);
+      }
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+      ctx.setLineDash([5, 5]);
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    activeProjectiles.forEach(p => {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.isSub ? 3 : 5, 0, Math.PI * 2);
+      ctx.fillStyle = p.type === 'cluster' ? '#a855f7' : (p.type === 'dirt' ? '#8b4513' : '#fff');
+      ctx.fill();
+      ctx.shadowBlur = 10;
+      ctx.shadowColor = ctx.fillStyle;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    particles.forEach(p => {
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x, p.y, 4, 4);
+    });
+    ctx.globalAlpha = 1.0;
+
+    requestAnimationFrame(loop);
+  }
+
+  // --- Events ---
+  document.getElementById('btn-pvp').addEventListener('click', () => initGame(false));
+  document.getElementById('btn-cpu').addEventListener('click', () => initGame(true));
+  document.getElementById('btn-restart').addEventListener('click', () => {
+    els.overModal.classList.add('hidden');
+    els.startModal.classList.remove('hidden');
+    els.hud.classList.add('hidden');
+  });
+
+  requestAnimationFrame(loop);
+</script>
+</body>
+</html>

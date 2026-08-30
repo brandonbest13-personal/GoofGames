@@ -1,1 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Abyss Manager - Hull Update</title>
+  
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      user-select: none;
+    }
 
+    body {
+      background-color: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #app {
+      display: flex;
+      flex-direction: row;
+      width: 100%;
+      max-width: 600px;
+      height: 90vh;
+      max-height: 700px;
+      background: #1e293b;
+      border: 4px solid #334155;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background: #020617;
+      border-right: 4px solid #334155;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    #console {
+      width: 240px;
+      display: flex;
+      flex-direction: column;
+      background: #0f172a;
+    }
+
+    #hud {
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      border-bottom: 4px dashed #334155;
+    }
+
+    .stat {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 13px;
+      font-weight: bold;
+    }
+
+    .stat-label { color: #64748b; text-transform: uppercase; font-size: 11px; }
+    .stat-val { color: #38bdf8; font-family: monospace; font-size: 15px; }
+    .stat-val.money { color: #22c55e; }
+    .stat-val.alert { color: #ef4444; }
+
+    #log-screen {
+      flex: 1;
+      padding: 10px;
+      background: #020617;
+      border-bottom: 4px dashed #334155;
+      overflow-y: auto;
+      font-size: 11px;
+      font-family: monospace;
+      line-height: 1.5;
+      color: #94a3b8;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .log-success { color: #22c55e; }
+    .log-warning { color: #eab308; }
+    .log-danger { color: #ef4444; }
+    .log-critical { color: #fff; background: #ef4444; padding: 2px 4px; border-radius: 2px;}
+
+    #actions {
+      padding: 10px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    button {
+      padding: 12px 5px;
+      font-size: 11px;
+      font-weight: bold;
+      background: #334155;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      text-transform: uppercase;
+      border-bottom: 3px solid #1e293b;
+      transition: all 0.1s;
+    }
+
+    button:active:not(:disabled) {
+      transform: translateY(2px);
+      border-bottom-width: 1px;
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .btn-action { background: #38bdf8; border-color: #0284c7; }
+    .btn-port { background: #22c55e; border-color: #16a34a; }
+    .btn-repair { background: #f97316; border-color: #c2410c; }
+    .btn-upgrade { grid-column: span 2; background: #eab308; border-color: #a16207; color: #451a03; }
+
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <div id="canvas-container">
+    <canvas id="gameCanvas"></canvas>
+  </div>
+
+  <div id="console">
+    <div id="hud">
+      <div class="stat"><span class="stat-label">Zone</span><span class="stat-val" id="ui-depth">SURFACE</span></div>
+      <div class="stat"><span class="stat-label">Funds</span><span class="stat-val money" id="ui-money">$50</span></div>
+      <div class="stat"><span class="stat-label">Hull</span><span class="stat-val" id="ui-hull">100/100</span></div>
+      <div class="stat"><span class="stat-label">Fuel</span><span class="stat-val" id="ui-fuel">100/100</span></div>
+      <div class="stat"><span class="stat-label">Cargo</span><span class="stat-val" id="ui-cargo">0/20</span></div>
+    </div>
+
+    <div id="log-screen">
+      <div>> Drone prepped. Waiting for orders.</div>
+    </div>
+
+    <div id="actions">
+      <button id="btn-descend" class="btn-action">Descend (5F)</button>
+      <button id="btn-ascend" class="btn-action">Ascend (5F)</button>
+      <button id="btn-fish" class="btn-action" style="grid-column: span 2;">Ping & Catch (2F)</button>
+      <button id="btn-port" class="btn-port">Dock & Sell</button>
+      <button id="btn-repair" class="btn-repair">Repair</button>
+      <button id="btn-upgrade" class="btn-upgrade">Buy Cargo+ ($150)</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // --- GAME LOGIC ---
+  const state = {
+    money: 50,
+    hull: 100,
+    maxHull: 100,
+    fuel: 100,
+    maxFuel: 100,
+    cargo: 0,
+    maxCargo: 20,
+    depth: 0, // 0 to 5
+    fishValue: 0
+  };
+
+  const ZONES = [
+    { name: 'SURFACE', color: '#0ea5e9' },
+    { name: 'SHALLOWS', color: '#0284c7' },
+    { name: 'TWILIGHT', color: '#0369a1' },
+    { name: 'MIDNIGHT', color: '#075985' },
+    { name: 'ABYSS', color: '#082f49' },
+    { name: 'TRENCH', color: '#020617' }
+  ];
+
+  const els = {
+    depth: document.getElementById('ui-depth'),
+    money: document.getElementById('ui-money'),
+    hull: document.getElementById('ui-hull'),
+    fuel: document.getElementById('ui-fuel'),
+    cargo: document.getElementById('ui-cargo'),
+    logs: document.getElementById('log-screen'),
+    btnDescend: document.getElementById('btn-descend'),
+    btnAscend: document.getElementById('btn-ascend'),
+    btnFish: document.getElementById('btn-fish'),
+    btnPort: document.getElementById('btn-port'),
+    btnRepair: document.getElementById('btn-repair'),
+    btnUpgrade: document.getElementById('btn-upgrade')
+  };
+
+  function log(msg, type = '') {
+    const div = document.createElement('div');
+    if (type) div.className = type;
+    div.innerText = `> ${msg}`;
+    els.logs.appendChild(div);
+    els.logs.scrollTop = els.logs.scrollHeight;
+  }
+
+  function updateUI() {
+    els.depth.innerText = ZONES[state.depth].name;
+    els.money.innerText = `$${state.money}`;
+    els.hull.innerText = `${Math.floor(state.hull)}/${state.maxHull}`;
+    els.fuel.innerText = `${Math.floor(state.fuel)}/${state.maxFuel}`;
+    els.cargo.innerText = `${state.cargo}/${state.maxCargo}`;
+
+    els.hull.className = state.hull < 35 ? 'stat-val alert' : 'stat-val';
+    els.fuel.className = state.fuel < 20 ? 'stat-val alert' : 'stat-val';
+
+    els.btnDescend.disabled = state.depth >= ZONES.length - 1 || state.fuel < 5;
+    els.btnAscend.disabled = state.depth === 0 || state.fuel < 5;
+    els.btnFish.disabled = state.depth === 0 || state.fuel < 2 || state.cargo >= state.maxCargo;
+    
+    els.btnPort.disabled = state.depth > 0;
+    
+    const repairCost = state.maxHull - state.hull;
+    els.btnRepair.innerText = repairCost > 0 ? `Repair ($${repairCost})` : `Repair`;
+    els.btnRepair.disabled = state.depth > 0 || repairCost === 0 || state.money <= 0;
+    
+    els.btnUpgrade.disabled = state.money < 150 || state.depth > 0;
+
+    visuals.targetY = 40 + (state.depth * visuals.zoneHeight);
+  }
+
+  // --- ACTIONS ---
+  els.btnDescend.addEventListener('click', () => {
+    state.fuel -= 5;
+    state.depth++;
+    log(`Descended to ${ZONES[state.depth].name}.`);
+    
+    // Hull Integrity Mechanic
+    const hazardChance = state.depth * 0.15; // Deeper = higher risk (up to 75%)
+    if (Math.random() < hazardChance) {
+      const dmg = Math.floor(Math.random() * 10) + 5 + (state.depth * 3);
+      state.hull -= dmg;
+      visuals.damageFlash = 1.0; // Trigger red screen flash
+      
+      if (state.hull <= 0) {
+        state.hull = 0;
+        log(`CRITICAL HULL BREACH!`, "log-critical");
+        log(`Emergency tow activated. Cargo lost. Fined $25.`, "log-danger");
+        state.depth = 0;
+        state.cargo = 0;
+        state.fishValue = 0;
+        state.fuel = 0;
+        state.money = Math.max(0, state.money - 25);
+      } else {
+        log(`Pressure anomaly! Hull took ${dmg} DMG.`, "log-danger");
+      }
+    }
+    
+    updateUI();
+  });
+
+  els.btnAscend.addEventListener('click', () => {
+    state.fuel -= 5;
+    state.depth--;
+    log(`Ascended to ${ZONES[state.depth].name}.`);
+    updateUI();
+  });
+
+  els.btnFish.addEventListener('click', () => {
+    state.fuel -= 2;
+    visuals.pingRadius = 1; 
+    
+    setTimeout(() => {
+      if (Math.random() > 0.4) {
+        const weight = Math.floor(Math.random() * (state.depth * 3)) + 1;
+        const val = weight * state.depth * 3;
+        
+        if (state.cargo + weight > state.maxCargo) {
+          log("Target acquired, but insufficient cargo space!", "log-warning");
+        } else {
+          state.cargo += weight;
+          state.fishValue += val;
+          log(`Recovered ${weight}kg mass.`, "log-success");
+          spawnCatchParticles(weight);
+        }
+      } else {
+        log("Sonar clear. No targets.", "log-warning");
+      }
+      updateUI();
+    }, 400);
+  });
+
+  els.btnPort.addEventListener('click', () => {
+    if (state.cargo > 0) {
+      log(`Offloaded cargo for $${state.fishValue}.`, "log-success");
+      state.money += state.fishValue;
+      state.cargo = 0;
+      state.fishValue = 0;
+    }
+    
+    const fuelCost = state.maxFuel - state.fuel;
+    if (fuelCost > 0) {
+      if (state.money >= fuelCost) {
+        state.money -= fuelCost;
+        state.fuel = state.maxFuel;
+        log(`Tanks refueled for $${fuelCost}.`);
+      } else if (state.money > 0) {
+        state.fuel += state.money;
+        log(`Partial refuel. Funds depleted.`, "log-warning");
+        state.money = 0;
+      }
+    }
+    updateUI();
+  });
+
+  els.btnRepair.addEventListener('click', () => {
+    const repairCost = state.maxHull - state.hull;
+    if (repairCost > 0 && state.money > 0) {
+      if (state.money >= repairCost) {
+        state.money -= repairCost;
+        state.hull = state.maxHull;
+        log(`Hull fully repaired for $${repairCost}.`, "log-success");
+      } else {
+        state.hull += state.money;
+        log(`Partial repair. Funds depleted.`, "log-warning");
+        state.money = 0;
+      }
+      updateUI();
+    }
+  });
+
+  els.btnUpgrade.addEventListener('click', () => {
+    state.money -= 150;
+    state.maxCargo += 15;
+    log(`Cargo bay expanded to ${state.maxCargo}kg.`, "log-success");
+    updateUI();
+  });
+
+  // --- VISUAL ENGINE (Canvas) ---
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  
+  const visuals = {
+    y: 40,
+    targetY: 40,
+    zoneHeight: 0,
+    pingRadius: 0,
+    damageFlash: 0,
+    particles: []
+  };
+
+  function resizeCanvas() {
+    canvas.width = canvas.parentElement.clientWidth;
+    canvas.height = canvas.parentElement.clientHeight;
+    visuals.zoneHeight = canvas.height / ZONES.length;
+    visuals.targetY = (visuals.zoneHeight / 2) + (state.depth * visuals.zoneHeight);
+    visuals.y = visuals.targetY;
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  function spawnCatchParticles(count) {
+    const numToSpawn = Math.min(count, 5); 
+    for(let i=0; i<numToSpawn; i++) {
+      visuals.particles.push({
+        x: (canvas.width/2) + (Math.random() * 100 - 50),
+        y: visuals.y + (Math.random() * 80 - 40),
+        size: Math.random() * 6 + 4,
+        color: ['#22c55e', '#38bdf8', '#a855f7', '#eab308'][Math.min(state.depth-1, 3)]
+      });
+    }
+  }
+
+  function render() {
+    // 1. Draw Zones
+    ZONES.forEach((zone, i) => {
+      ctx.fillStyle = zone.color;
+      ctx.fillRect(0, i * visuals.zoneHeight, canvas.width, visuals.zoneHeight);
+    });
+
+    // 2. Screen Flash (Damage)
+    if (visuals.damageFlash > 0) {
+      ctx.fillStyle = `rgba(239, 68, 68, ${visuals.damageFlash})`;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      visuals.damageFlash -= 0.04;
+    }
+
+    visuals.y += (visuals.targetY - visuals.y) * 0.1;
+
+    // 3. Draw Tether
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2, 0);
+    ctx.lineTo(canvas.width / 2, visuals.y);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 4. Draw Sonar Ping
+    if (visuals.pingRadius > 0) {
+      ctx.beginPath();
+      ctx.arc(canvas.width / 2, visuals.y, visuals.pingRadius, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(56, 189, 248, ${Math.max(0, 1 - (visuals.pingRadius / 100))})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      visuals.pingRadius += 4;
+      if (visuals.pingRadius > 100) visuals.pingRadius = 0;
+    }
+
+    // 5. Draw Particles
+    for (let i = visuals.particles.length - 1; i >= 0; i--) {
+      let p = visuals.particles[i];
+      p.x += ((canvas.width/2) - p.x) * 0.15;
+      p.y += (visuals.y - p.y) * 0.15;
+      
+      ctx.fillStyle = p.color;
+      ctx.fillRect(p.x - p.size/2, p.y - p.size/2, p.size, p.size);
+
+      if (Math.abs(p.x - canvas.width/2) < 5 && Math.abs(p.y - visuals.y) < 5) {
+        visuals.particles.splice(i, 1);
+      }
+    }
+
+    // 6. Draw Drone
+    const dx = canvas.width / 2;
+    const dy = visuals.y;
+    
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(dx - 15, dy - 15, 30, 30);
+    ctx.fillStyle = state.cargo > 0 ? '#38bdf8' : '#0f172a';
+    ctx.fillRect(dx - 7, dy - 7, 14, 14);
+
+    requestAnimationFrame(render);
+  }
+
+  resizeCanvas();
+  updateUI();
+  requestAnimationFrame(render);
+</script>
+</body>
+</html>

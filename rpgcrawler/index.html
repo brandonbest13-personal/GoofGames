@@ -14,14 +14,14 @@
       justify-content: center;
       align-items: center;
       height: 100vh;
+      height: 100dvh; /* Better for mobile Safari/Chrome */
       overflow: hidden;
     }
 
     #app {
       width: 100%;
       max-width: 500px;
-      height: 100vh;
-      max-height: 800px;
+      height: 100%;
       background: #222;
       border: 2px solid #555;
       display: flex;
@@ -38,6 +38,7 @@
       padding: 20px;
       text-align: center;
       background: #1a1a1a;
+      overflow-y: auto; /* Allows scrolling on tiny screens */
     }
 
     .class-card {
@@ -82,12 +83,18 @@
       align-items: center;
       border-bottom: 2px solid #444;
       position: relative;
+      padding: 10px;
+      min-height: 0; /* Required to allow flex child to shrink properly */
     }
 
     canvas {
       background: #1e1e1e;
       box-shadow: 0 0 20px rgba(0,0,0,0.8);
       cursor: crosshair;
+      width: 100%;
+      max-width: 400px;
+      aspect-ratio: 1 / 1; /* Maintains perfect square on mobile */
+      touch-action: none; /* Prevents page swipe when touching canvas */
     }
 
     /* Controls & Log */
@@ -159,6 +166,7 @@
     </div>
     
     <div id="canvas-container">
+      <!-- Internal resolution remains 400x400 for crisp pixel art -->
       <canvas id="gameCanvas" width="400" height="400"></canvas>
     </div>
     
@@ -167,6 +175,11 @@
       <button id="btn-end-turn">End Turn</button>
     </div>
   </div>
+  
+  <!-- Ambient Audio Track -->
+  <audio id="bg-music" loop>
+    <source src="The_Eleventh_Room.mp3" type="audio/mpeg">
+  </audio>
 </div>
 
 <script>
@@ -183,7 +196,8 @@
     ap: document.getElementById('ui-ap'),
     depth: document.getElementById('ui-depth'),
     log: document.getElementById('log'),
-    btnEnd: document.getElementById('btn-end-turn')
+    btnEnd: document.getElementById('btn-end-turn'),
+    bgMusic: document.getElementById('bg-music')
   };
 
   // --- GAME STATE ---
@@ -211,6 +225,11 @@
       player.classDef = CLASSES[cId];
       player.maxAp = player.classDef.maxAp;
       player.ap = player.maxAp; 
+
+      // Start the ambient audio loop
+      els.bgMusic.play().catch(err => {
+        console.warn("Audio playback was prevented by the browser:", err);
+      });
 
       els.start.style.display = 'none';
       els.game.style.display = 'flex';
@@ -413,12 +432,15 @@
   }
 
   // --- PLAYER INPUT ---
-  canvas.addEventListener('mousedown', (e) => {
+  canvas.addEventListener('pointerdown', (e) => {
     if (!isPlayerTurn || player.hp <= 0) return;
 
     const rect = canvas.getBoundingClientRect();
-    const cx = Math.floor((e.clientX - rect.left) / CELL);
-    const cy = Math.floor((e.clientY - rect.top) / CELL);
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    
+    const cx = Math.floor(((e.clientX - rect.left) * scaleX) / CELL);
+    const cy = Math.floor(((e.clientY - rect.top) * scaleY) / CELL);
 
     if (getDist(player.x, player.y, cx, cy) === 1) {
       const enemy = getEnemyAt(cx, cy);

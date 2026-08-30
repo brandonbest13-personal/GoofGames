@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Connect Tactics</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    body {
+      background-color: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    #game-container {
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+      max-width: 100%;
+    }
+
+    /* Header & Settings */
+    #header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 2px solid #334155;
+      padding-bottom: 10px;
+    }
+
+    .mode-select {
+      background: #0f172a;
+      color: #38bdf8;
+      border: 1px solid #38bdf8;
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #turn-indicator {
+      font-size: 20px;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .turn-p1 { color: #ef4444; } /* Red */
+    .turn-p2 { color: #eab308; } /* Yellow */
+
+    /* Special Abilities UI */
+    .hud-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+    }
+
+    .player-hud {
+      flex: 1;
+      background: #0f172a;
+      padding: 10px;
+      border-radius: 8px;
+      border: 2px solid transparent;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hud-active-1 { border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); }
+    .hud-active-2 { border-color: #eab308; box-shadow: 0 0 10px rgba(234, 179, 8, 0.2); }
+
+    .hud-title {
+      font-size: 12px;
+      font-weight: bold;
+      color: #94a3b8;
+      text-transform: uppercase;
+    }
+
+    .powers {
+      display: flex;
+      gap: 10px;
+    }
+
+    .btn-power {
+      background: #334155;
+      color: #fff;
+      border: 2px solid #475569;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-power:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .btn-power.active {
+      background: #a855f7;
+      border-color: #d8b4fe;
+      box-shadow: 0 0 10px #a855f7;
+    }
+
+    /* Canvas */
+    #canvas-wrapper {
+      position: relative;
+      background: #0f172a;
+      border-radius: 8px;
+      padding: 10px;
+      margin: 0 auto;
+    }
+
+    canvas {
+      background: #1d4ed8; /* Classic Connect 4 Blue */
+      border-radius: 4px;
+      cursor: pointer;
+      box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+    }
+
+    /* Modals */
+    .overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(15, 23, 42, 0.9);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      border-radius: 8px;
+      z-index: 10;
+    }
+
+    .hidden { display: none !important; }
+
+    .overlay h1 {
+      font-size: 32px;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+    }
+
+    .overlay button {
+      background: #38bdf8;
+      color: #0f172a;
+      border: none;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: bold;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+<div id="game-container">
+  <div id="header">
+    <select id="mode-select" class="mode-select">
+      <option value="cpu">VS CPU</option>
+      <option value="pvp">Pass & Play</option>
+    </select>
+    <div id="turn-indicator" class="turn-p1">P1 Turn</div>
+    <button id="btn-reset" class="mode-select" style="border-color:#ef4444; color:#ef4444;">Restart</button>
+  </div>
+
+  <div class="hud-row">
+    <div class="player-hud hud-active-1" id="hud-p1">
+      <div class="hud-title">P1 (Red)</div>
+      <div class="powers">
+        <button class="btn-power" id="p1-bomb" data-player="1" data-power="bomb">Bomb (1)</button>
+        <button class="btn-power" id="p1-anvil" data-player="1" data-power="anvil">Anvil (1)</button>
+      </div>
+    </div>
+    
+    <div class="player-hud" id="hud-p2">
+      <div class="hud-title">P2 (Yellow)</div>
+      <div class="powers">
+        <button class="btn-power" id="p2-bomb" data-player="2" data-power="bomb">Bomb (1)</button>
+        <button class="btn-power" id="p2-anvil" data-player="2" data-power="anvil">Anvil (1)</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="canvas-wrapper">
+    <canvas id="gameCanvas" width="420" height="360"></canvas>
+    
+    <div id="game-over-overlay" class="overlay hidden">
+      <h1 id="winner-text">P1 WINS!</h1>
+      <button id="btn-play-again">PLAY AGAIN</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  const COLS = 7;
+  const ROWS = 6;
+  const CELL_SIZE = 60;
+  
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+
+  // Colors
+  const C_EMPTY = '#0f172a';
+  const C_P1 = '#ef4444';
+  const C_P2 = '#eab308';
+  const C_BOMB = '#a855f7';
+  const C_ANVIL = '#64748b';
+
+  // State
+  let board = [];
+  let currentPlayer = 1; // 1 or 2
+  let isGameOver = false;
+  let gameMode = 'cpu'; // 'cpu' or 'pvp'
+  let activePower = null; // null, 'bomb', 'anvil'
+  let isAnimating = false;
+
+  let powers = {
+    1: { bomb: 1, anvil: 1 },
+    2: { bomb: 1, anvil: 1 }
+  };
+
+  // DOM Elements
+  const els = {
+    turnInd: document.getElementById('turn-indicator'),
+    modeSelect: document.getElementById('mode-select'),
+    btnReset: document.getElementById('btn-reset'),
+    btnPlayAgain: document.getElementById('btn-play-again'),
+    overlay: document.getElementById('game-over-overlay'),
+    winnerText: document.getElementById('winner-text'),
+    huds: { 1: document.getElementById('hud-p1'), 2: document.getElementById('hud-p2') },
+    powerBtns: document.querySelectorAll('.btn-power')
+  };
+
+  function initGame() {
+    // Board is array of columns. Bottom is index 0.
+    board = Array.from({ length: COLS }, () => []);
+    currentPlayer = 1;
+    isGameOver = false;
+    activePower = null;
+    gameMode = els.modeSelect.value;
+    
+    powers = {
+      1: { bomb: 1, anvil: 1 },
+      2: { bomb: 1, anvil: 1 }
+    };
+
+    els.overlay.classList.add('hidden');
+    updateUI();
+    drawBoard();
+  }
+
+  function updateUI() {
+    els.turnInd.innerText = currentPlayer === 1 ? "P1 Turn" : (gameMode === 'cpu' ? "CPU Turn" : "P2 Turn");
+    els.turnInd.className = currentPlayer === 1 ? 'turn-p1' : 'turn-p2';
+
+    els.huds[1].className = `player-hud ${currentPlayer === 1 ? 'hud-active-1' : ''}`;
+    els.huds[2].className = `player-hud ${currentPlayer === 2 ? 'hud-active-2' : ''}`;
+
+    els.powerBtns.forEach(btn => {
+      const p = parseInt(btn.dataset.player);
+      const pow = btn.dataset.power;
+      
+      // Update counts
+      btn.innerText = `${pow.charAt(0).toUpperCase() + pow.slice(1)} (${powers[p][pow]})`;
+      
+      // Disable logic
+      if (isGameOver || p !== currentPlayer || powers[p][pow] <= 0 || (gameMode === 'cpu' && currentPlayer === 2)) {
+        btn.disabled = true;
+        btn.classList.remove('active');
+      } else {
+        btn.disabled = false;
+        btn.classList.toggle('active', activePower === pow);
+      }
+    });
+  }
+
+  // Handle Power Clicks
+  els.powerBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      if (isGameOver || isAnimating) return;
+      const pow = e.target.dataset.power;
+      // Toggle power
+      activePower = activePower === pow ? null : pow;
+      updateUI();
+    });
+  });
+
+  // Main Interaction
+  canvas.addEventListener('pointerdown', (e) => {
+    if (isGameOver || isAnimating || (gameMode === 'cpu' && currentPlayer === 2)) return;
+    
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const col = Math.floor(x / CELL_SIZE);
+
+    if (col >= 0 && col < COLS) {
+      playTurn(col);
+    }
+  });
+
+  function playTurn(col) {
+    // Validate move
+    if (board[col].length >= ROWS && activePower !== 'anvil') {
+      return; // Column full, can only play Anvil here
+    }
+
+    let powerUsed = activePower;
+    activePower = null; // consume activation state
+
+    if (powerUsed) {
+      powers[currentPlayer][powerUsed]--;
+    }
+
+    executeDrop(col, currentPlayer, powerUsed);
+  }
+
+  function executeDrop(col, player, power) {
+    isAnimating = true;
+    updateUI(); // Locks UI
+
+    if (power === 'anvil') {
+      // Anvil pushes column down
+      if (board[col].length > 0) {
+        board[col].shift(); // Remove bottom piece
+      }
+      board[col].push({ p: player, type: 'anvil' });
+    } 
+    else if (power === 'bomb') {
+      // Bomb goes to top available slot
+      board[col].push({ p: player, type: 'bomb' });
+    } 
+    else {
+      // Normal piece
+      board[col].push({ p: player, type: 'normal' });
+    }
+
+    drawBoard();
+
+    // Small delay to simulate animation/impact
+    setTimeout(() => {
+      resolveEffects(col, power);
+    }, 400);
+  }
+
+  function resolveEffects(col, power) {
+    if (power === 'bomb') {
+      // Explode 3x3
+      const targetRow = board[col].length - 1;
+      
+      for (let c = Math.max(0, col - 1); c <= Math.min(COLS - 1, col + 1); c++) {
+        for (let r = 0; r < board[c].length; r++) {
+          if (r >= targetRow - 1 && r <= targetRow + 1) {
+            board[c][r] = null; // Mark destroyed
+          }
+        }
+      }
+      // Apply gravity
+      applyGravity();
+    }
+
+    drawBoard();
+    
+    // Check Win
+    const winner = checkWin();
+    if (winner) {
+      endGame(winner);
+    } else {
+      // Switch Turn
+      currentPlayer = currentPlayer === 1 ? 2 : 1;
+      isAnimating = false;
+      updateUI();
+
+      if (gameMode === 'cpu' && currentPlayer === 2 && !isGameOver) {
+        setTimeout(cpuPlay, 600);
+      }
+    }
+  }
+
+  function applyGravity() {
+    for (let c = 0; c < COLS; c++) {
+      board[c] = board[c].filter(piece => piece !== null);
+    }
+  }
+
+  function checkWin() {
+    // Map board to a simple 2D array for easy checking
+    let grid = Array(COLS).fill(null).map(() => Array(ROWS).fill(0));
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < board[c].length; r++) {
+        if (board[c][r]) grid[c][r] = board[c][r].p;
+      }
+    }
+
+    const dirs = [[1,0], [0,1], [1,1], [1,-1]];
+    let p1Win = false;
+    let p2Win = false;
+
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < ROWS; r++) {
+        const p = grid[c][r];
+        if (p === 0) continue;
+
+        for (let [dx, dy] of dirs) {
+          let count = 1;
+          let nx = c + dx;
+          let ny = r + dy;
+          while (nx >= 0 && nx < COLS && ny >= 0 && ny < ROWS && grid[nx][ny] === p) {
+            count++;
+            nx += dx;
+            ny += dy;
+          }
+          if (count >= 4) {
+            if (p === 1) p1Win = true;
+            if (p === 2) p2Win = true;
+          }
+        }
+      }
+    }
+
+    if (p1Win && p2Win) return 'DRAW';
+    if (p1Win) return 1;
+    if (p2Win) return 2;
+    
+    // Check for full board draw
+    let isFull = true;
+    for (let c = 0; c < COLS; c++) {
+      if (board[c].length < ROWS) isFull = false;
+    }
+    if (isFull) return 'DRAW';
+
+    return null;
+  }
+
+  function endGame(winner) {
+    isGameOver = true;
+    isAnimating = false;
+    els.overlay.classList.remove('hidden');
+    
+    if (winner === 'DRAW') {
+      els.winnerText.innerText = "IT'S A DRAW!";
+      els.winnerText.style.color = "#fff";
+    } else {
+      els.winnerText.innerText = winner === 1 ? "P1 WINS!" : "P2 WINS!";
+      els.winnerText.style.color = winner === 1 ? C_P1 : C_P2;
+    }
+  }
+
+  // --- CPU Logic ---
+  function cpuPlay() {
+    if (isGameOver) return;
+    
+    // Simple heuristic: Try to win, block opponent, then random.
+    let bestCol = -1;
+    let powerToUse = null;
+
+    // Check if CPU can win
+    bestCol = findWinningMove(2);
+    // Check if CPU needs to block
+    if (bestCol === -1) bestCol = findWinningMove(1);
+
+    // Random choice if no immediate threats
+    if (bestCol === -1) {
+      let validCols = [];
+      for (let c=0; c<COLS; c++) {
+        if (board[c].length < ROWS) validCols.push(c);
+      }
+      
+      // Consider Anvil if a column is full
+      if (powers[2].anvil > 0 && Math.random() < 0.3) {
+        powerToUse = 'anvil';
+        bestCol = Math.floor(Math.random() * COLS); // Can drop anvil anywhere
+      } 
+      // Consider Bomb
+      else if (powers[2].bomb > 0 && Math.random() < 0.2 && validCols.length > 0) {
+        powerToUse = 'bomb';
+        bestCol = validCols[Math.floor(Math.random() * validCols.length)];
+      } 
+      // Standard random
+      else if (validCols.length > 0) {
+        bestCol = validCols[Math.floor(Math.random() * validCols.length)];
+      }
+    }
+
+    if (bestCol !== -1) {
+      activePower = powerToUse;
+      playTurn(bestCol);
+    }
+  }
+
+  function findWinningMove(playerObj) {
+    // Simulates a drop in every column to see if it causes a win
+    for (let c = 0; c < COLS; c++) {
+      if (board[c].length < ROWS) {
+        board[c].push({ p: playerObj, type: 'normal' }); // simulate
+        const win = checkWin();
+        board[c].pop(); // undo
+        if (win === playerObj) return c;
+      }
+    }
+    return -1;
+  }
+
+  // --- Rendering ---
+  function drawBoard() {
+    // Clear canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    const radius = 22;
+    const padding = (CELL_SIZE - radius * 2) / 2;
+
+    for (let c = 0; c < COLS; c++) {
+      for (let r = 0; r < ROWS; r++) {
+        const cx = c * CELL_SIZE + CELL_SIZE / 2;
+        // Invert Y so row 0 is at the bottom
+        const cy = canvas.height - (r * CELL_SIZE + CELL_SIZE / 2);
+
+        // Draw Hole (Background)
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fillStyle = C_EMPTY;
+        ctx.fill();
+
+        // Draw Piece if exists
+        if (r < board[c].length) {
+          const piece = board[c][r];
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius - 2, 0, Math.PI * 2);
+          
+          if (piece.type === 'bomb') ctx.fillStyle = C_BOMB;
+          else if (piece.type === 'anvil') ctx.fillStyle = C_ANVIL;
+          else ctx.fillStyle = piece.p === 1 ? C_P1 : C_P2;
+          
+          ctx.fill();
+
+          // Add a subtle inner shadow/highlight for depth
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius - 6, 0, Math.PI * 2);
+          ctx.strokeStyle = 'rgba(255,255,255,0.2)';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+
+          // Icon indicator for specials
+          if (piece.type === 'bomb' || piece.type === 'anvil') {
+            ctx.fillStyle = '#fff';
+            ctx.font = '16px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(piece.type === 'bomb' ? 'B' : 'A', cx, cy + 1);
+          }
+        }
+      }
+    }
+  }
+
+  // Events
+  els.modeSelect.addEventListener('change', initGame);
+  els.btnReset.addEventListener('click', initGame);
+  els.btnPlayAgain.addEventListener('click', initGame);
+
+  // Start
+  initGame();
+</script>
+</body>
+</html>

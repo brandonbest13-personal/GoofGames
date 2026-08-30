@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Blocky Joust</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+    }
+
+    body {
+      background-color: #1c1917; /* Dark stone */
+      color: #f5f5f4;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    #app {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      max-width: 500px;
+      height: 100vh;
+      max-height: 800px;
+      background: #292524;
+      border: 4px solid #44403c;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    /* HUD Area */
+    #hud {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 15px;
+      background: #1c1917;
+      border-bottom: 4px solid #44403c;
+    }
+
+    .knight-stats {
+      width: 45%;
+    }
+
+    .knight-name {
+      font-weight: 800;
+      font-size: 14px;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .p1-name { color: #3b82f6; } /* Royal Blue */
+    .p2-name { color: #ef4444; } /* Crimson */
+
+    .bar-container {
+      width: 100%;
+      height: 12px;
+      background: #000;
+      border: 2px solid #57534e;
+      margin-bottom: 4px;
+      position: relative;
+    }
+
+    .bar-fill {
+      height: 100%;
+      transition: width 0.3s ease;
+    }
+    .hp-fill { background: #22c55e; }
+    .bal-fill { background: #eab308; }
+    
+    .bar-label {
+      position: absolute;
+      top: -2px;
+      left: 4px;
+      font-size: 9px;
+      font-weight: bold;
+      color: #fff;
+      text-shadow: 1px 1px 0 #000;
+    }
+
+    /* Canvas Area */
+    #canvas-container {
+      flex: 1;
+      position: relative;
+      background: #7dd3fc; /* Sky blue */
+      border-bottom: 4px solid #44403c;
+      min-height: 200px;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Combat Log */
+    #log {
+      height: 80px;
+      background: #1c1917;
+      padding: 8px 12px;
+      font-size: 11px;
+      line-height: 1.4;
+      overflow-y: auto;
+      border-bottom: 4px solid #44403c;
+      color: #a8a29e;
+    }
+    .log-p1 { color: #60a5fa; }
+    .log-p2 { color: #f87171; }
+    .log-sys { color: #facc15; font-weight: bold; }
+
+    /* Controls Area */
+    #controls {
+      padding: 12px;
+      background: #292524;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    
+    .control-label {
+      font-size: 11px;
+      color: #a8a29e;
+      text-transform: uppercase;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+
+    .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .opt-btn {
+      flex: 1;
+      padding: 10px 0;
+      background: #44403c;
+      color: #d6d3d1;
+      border: 2px solid #57534e;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 13px;
+      cursor: pointer;
+      text-transform: uppercase;
+    }
+
+    .opt-btn.active {
+      background: #3b82f6;
+      border-color: #60a5fa;
+      color: #fff;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.3);
+    }
+
+    #btn-joust {
+      width: 100%;
+      padding: 16px;
+      background: #eab308;
+      color: #451a03;
+      border: 2px solid #ca8a04;
+      border-bottom: 6px solid #a16207;
+      border-radius: 6px;
+      font-size: 18px;
+      font-weight: 900;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-top: 5px;
+    }
+    #btn-joust:active:not(:disabled) {
+      transform: translateY(4px);
+      border-bottom-width: 2px;
+    }
+    #btn-joust:disabled {
+      background: #57534e;
+      border-color: #44403c;
+      color: #a8a29e;
+      cursor: not-allowed;
+    }
+
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <div id="hud">
+    <div class="knight-stats">
+      <div class="knight-name p1-name">You (Blue)</div>
+      <div class="bar-container"><div class="bar-fill hp-fill" id="p1-hp"></div><div class="bar-label">HP</div></div>
+      <div class="bar-container"><div class="bar-fill bal-fill" id="p1-bal"></div><div class="bar-label">BAL</div></div>
+    </div>
+    <div class="knight-stats">
+      <div class="knight-name p2-name" style="text-align:right;">Rival (Red)</div>
+      <div class="bar-container"><div class="bar-fill hp-fill" id="p2-hp" style="float:right;"></div><div class="bar-label">HP</div></div>
+      <div class="bar-container"><div class="bar-fill bal-fill" id="p2-bal" style="float:right;"></div><div class="bar-label">BAL</div></div>
+    </div>
+  </div>
+
+  <div id="canvas-container">
+    <canvas id="gameCanvas"></canvas>
+  </div>
+
+  <div id="log">
+    <div class="log-sys">> Tournament begins! Select your tactics.</div>
+  </div>
+
+  <div id="controls">
+    <div class="control-group">
+      <div class="control-label">1. Speed (Force vs Stability)</div>
+      <div class="btn-row">
+        <button class="opt-btn" data-type="speed" data-val="1">Trot</button>
+        <button class="opt-btn active" data-type="speed" data-val="2">Canter</button>
+        <button class="opt-btn" data-type="speed" data-val="3">Gallop</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">2. Target Angle</div>
+      <div class="btn-row">
+        <button class="opt-btn" data-type="aim" data-val="high">High (Helm)</button>
+        <button class="opt-btn active" data-type="aim" data-val="mid">Mid (Shield)</button>
+        <button class="opt-btn" data-type="aim" data-val="low">Low (Body)</button>
+      </div>
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">3. Stance</div>
+      <div class="btn-row">
+        <button class="opt-btn active" data-type="stance" data-val="attack">Lean (Attack)</button>
+        <button class="opt-btn" data-type="stance" data-val="defend">Brace (Defend)</button>
+      </div>
+    </div>
+
+    <button id="btn-joust">JOUST!</button>
+  </div>
+</div>
+
+<script>
+  // --- Game State ---
+  const MAX_HP = 100;
+  const MAX_BAL = 100;
+
+  let player = { hp: MAX_HP, bal: MAX_BAL, speed: 2, aim: 'mid', stance: 'attack', x: 0, startX: 40 };
+  let enemy = { hp: MAX_HP, bal: MAX_BAL, speed: 2, aim: 'mid', stance: 'attack', x: 0, startX: 400 };
+  
+  let gameState = 'IDLE'; // IDLE, CHARGING, CLASH, RESETTING, GAMEOVER
+  let particles = [];
+  let animProgress = 0;
+
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  
+  const els = {
+    p1Hp: document.getElementById('p1-hp'),
+    p1Bal: document.getElementById('p1-bal'),
+    p2Hp: document.getElementById('p2-hp'),
+    p2Bal: document.getElementById('p2-bal'),
+    log: document.getElementById('log'),
+    btnJoust: document.getElementById('btn-joust'),
+    optBtns: document.querySelectorAll('.opt-btn')
+  };
+
+  // --- UI & Controls ---
+  function updateBars() {
+    els.p1Hp.style.width = `${Math.max(0, (player.hp / MAX_HP) * 100)}%`;
+    els.p1Bal.style.width = `${Math.max(0, (player.bal / MAX_BAL) * 100)}%`;
+    els.p2Hp.style.width = `${Math.max(0, (enemy.hp / MAX_HP) * 100)}%`;
+    els.p2Bal.style.width = `${Math.max(0, (enemy.bal / MAX_BAL) * 100)}%`;
+  }
+
+  function logMsg(msg, type = '') {
+    const div = document.createElement('div');
+    if (type) div.className = type;
+    div.innerText = msg;
+    els.log.appendChild(div);
+    els.log.scrollTop = els.log.scrollHeight;
+  }
+
+  els.optBtns.forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      if (gameState !== 'IDLE') return;
+      const type = e.target.getAttribute('data-type');
+      const val = e.target.getAttribute('data-val');
+      
+      // Update UI selection
+      document.querySelectorAll(`.opt-btn[data-type="${type}"]`).forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      
+      // Update state
+      if (type === 'speed') player.speed = parseInt(val);
+      if (type === 'aim') player.aim = val;
+      if (type === 'stance') player.stance = val;
+    });
+  });
+
+  els.btnJoust.addEventListener('click', () => {
+    if (gameState !== 'IDLE') return;
+    
+    // Generate Enemy AI Decision
+    enemy.speed = Math.floor(Math.random() * 3) + 1;
+    enemy.aim = ['high', 'mid', 'low'][Math.floor(Math.random() * 3)];
+    enemy.stance = Math.random() > 0.4 ? 'attack' : 'defend';
+
+    logMsg(`> Tilting...`, 'log-sys');
+    
+    els.btnJoust.disabled = true;
+    gameState = 'CHARGING';
+    animProgress = 0;
+  });
+
+  // --- Combat Logic ---
+  function resolveClash() {
+    // Determine impact forces based on speed (1, 2, or 3)
+    const p1Force = player.speed * 15;
+    const p2Force = enemy.speed * 15;
+    
+    // Balance cost for speed (going fast makes you unstable)
+    player.bal -= (player.speed * 5);
+    enemy.bal -= (enemy.speed * 5);
+
+    let p1DmgDealt = 0;
+    let p1BalDealt = 0;
+    let p2DmgDealt = 0;
+    let p2BalDealt = 0;
+
+    // --- Player attacks Enemy ---
+    if (player.stance === 'attack') {
+      if (enemy.stance === 'defend' && enemy.aim === player.aim) {
+        logMsg(`Enemy blocks your ${player.aim} strike!`, 'log-p2');
+        p1BalDealt = p1Force * 0.5; // Still deals balance damage
+      } else {
+        logMsg(`You strike enemy ${player.aim}!`, 'log-p1');
+        p1DmgDealt = p1Force;
+        p1BalDealt = p1Force;
+        if (player.aim === 'high') p1DmgDealt *= 1.5; // Headshots hurt more
+      }
+    } else {
+      // Player is defending
+      if (player.aim === enemy.aim && enemy.stance === 'attack') {
+        logMsg(`You braced against their ${enemy.aim} strike!`, 'log-p1');
+      }
+    }
+
+    // --- Enemy attacks Player ---
+    if (enemy.stance === 'attack') {
+      if (player.stance === 'defend' && player.aim === enemy.aim) {
+        p2BalDealt = p2Force * 0.5;
+      } else {
+        logMsg(`Enemy strikes you ${enemy.aim}!`, 'log-p2');
+        p2DmgDealt = p2Force;
+        p2BalDealt = p2Force;
+        if (enemy.aim === 'high') p2DmgDealt *= 1.5;
+      }
+    }
+
+    // Apply Damage
+    enemy.hp -= p1DmgDealt;
+    enemy.bal -= p1BalDealt;
+    player.hp -= p2DmgDealt;
+    player.bal -= p2BalDealt;
+
+    // Splinters!
+    spawnParticles(canvas.width/2, 120, 20);
+
+    updateBars();
+
+    // Check for knockouts/unhorsing
+    setTimeout(() => {
+      if (player.hp <= 0 || player.bal <= 0 || enemy.hp <= 0 || enemy.bal <= 0) {
+        gameState = 'GAMEOVER';
+        els.btnJoust.innerText = "PLAY AGAIN";
+        els.btnJoust.disabled = false;
+        
+        if ((player.hp <= 0 || player.bal <= 0) && (enemy.hp <= 0 || enemy.bal <= 0)) {
+          logMsg(`DOUBLE KNOCKOUT!`, 'log-sys');
+        } else if (player.hp <= 0 || player.bal <= 0) {
+          logMsg(player.bal <= 0 ? `UNHORSED! You lose.` : `DEFEATED! You lose.`, 'log-sys');
+        } else {
+          logMsg(enemy.bal <= 0 ? `VICTORY! Enemy unhorsed.` : `VICTORY! Enemy defeated.`, 'log-sys');
+        }
+      } else {
+        gameState = 'RESETTING';
+        animProgress = 0;
+      }
+    }, 1000);
+  }
+
+  // --- Visuals (Canvas Engine) ---
+  function resizeCanvas() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+    player.startX = 40;
+    enemy.startX = canvas.width - 40;
+    player.x = player.startX;
+    enemy.x = enemy.startX;
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  function spawnParticles(x, y, count) {
+    for (let i = 0; i < count; i++) {
+      particles.push({
+        x: x,
+        y: y + (Math.random() * 40 - 20),
+        vx: (Math.random() * 10 - 5),
+        vy: (Math.random() * -10),
+        life: 1.0,
+        color: Math.random() > 0.5 ? '#d6d3d1' : '#a16207' // Steel or Wood
+      });
+    }
+  }
+
+  function drawKnight(x, y, isFacingRight, color, stance, aim) {
+    const dir = isFacingRight ? 1 : -1;
+    
+    // Draw Horse
+    ctx.fillStyle = '#78350f'; // Brown
+    ctx.fillRect(x - (30 * dir), y, 60 * dir, 35); // Body
+    ctx.fillRect(x + (15 * dir), y - 20, 20 * dir, 25); // Head
+    ctx.fillRect(x - (25 * dir), y + 35, 10 * dir, 20); // Leg B
+    ctx.fillRect(x + (15 * dir), y + 35, 10 * dir, 20); // Leg F
+
+    // Draw Knight Body
+    ctx.fillStyle = '#9ca3af'; // Steel armor
+    const lean = stance === 'attack' ? 10 * dir : -5 * dir;
+    ctx.fillRect(x - 10 + lean, y - 40, 20, 45); // Torso
+    
+    // Crest/Plume
+    ctx.fillStyle = color;
+    ctx.fillRect(x - 5 + lean, y - 55, 10, 15); // Helm
+    ctx.fillRect(x - 15 * dir + lean, y - 50, 20 * dir, 5); // Plume
+
+    // Draw Lance
+    ctx.fillStyle = '#a16207'; // Wood
+    let lanceY = y - 20; // Mid
+    if (aim === 'high') lanceY = y - 40;
+    if (aim === 'low') lanceY = y;
+    
+    if (stance === 'attack') {
+      ctx.fillRect(x + lean, lanceY, 80 * dir, 4); // Lance forward
+      // Shield back
+      ctx.fillStyle = color;
+      ctx.fillRect(x - 15 * dir + lean, y - 30, 10 * dir, 25);
+    } else {
+      ctx.fillRect(x + lean, y - 60, 4, 80); // Lance upright (braced)
+      // Shield Forward
+      ctx.fillStyle = color;
+      ctx.fillRect(x + 5 * dir + lean, lanceY - 10, 10 * dir, 25);
+    }
+  }
+
+  function render() {
+    // Clear & Draw Background
+    ctx.fillStyle = '#7dd3fc'; // Sky
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.fillStyle = '#4ade80'; // Grass
+    ctx.fillRect(0, canvas.height/2 + 20, canvas.width, canvas.height);
+    
+    ctx.fillStyle = '#a8a29e'; // Dirt track
+    ctx.fillRect(0, canvas.height/2 + 30, canvas.width, 60);
+    
+    ctx.fillStyle = '#f87171'; // Fence line
+    ctx.fillRect(0, canvas.height/2 + 45, canvas.width, 5);
+
+    // Animation Logic
+    const centerY = canvas.height/2 + 10;
+    const impactX = canvas.width / 2;
+
+    if (gameState === 'CHARGING') {
+      animProgress += 0.02 * (Math.max(player.speed, enemy.speed));
+      
+      // Interpolate position toward center
+      player.x = player.startX + (impactX - player.startX) * animProgress;
+      enemy.x = enemy.startX + (impactX - enemy.startX) * animProgress;
+
+      if (animProgress >= 1.0) {
+        gameState = 'CLASH';
+        resolveClash();
+      }
+    } else if (gameState === 'RESETTING') {
+      animProgress += 0.05;
+      player.x = impactX + (player.startX - impactX) * animProgress;
+      enemy.x = impactX + (enemy.startX - impactX) * animProgress;
+      
+      if (animProgress >= 1.0) {
+        gameState = 'IDLE';
+        els.btnJoust.disabled = false;
+        player.x = player.startX;
+        enemy.x = enemy.startX;
+      }
+    }
+
+    // Draw Entities
+    drawKnight(player.x, centerY, true, '#3b82f6', player.stance, player.aim); // P1
+    drawKnight(enemy.x, centerY, false, '#ef4444', enemy.stance, enemy.aim); // P2
+
+    // Draw Particles
+    for (let i = particles.length - 1; i >= 0; i--) {
+      let p = particles[i];
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.5; // Gravity
+      p.life -= 0.02;
+      
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = Math.max(0, p.life);
+      ctx.fillRect(p.x, p.y, 4, 4);
+      ctx.globalAlpha = 1.0;
+
+      if (p.life <= 0) particles.splice(i, 1);
+    }
+
+    requestAnimationFrame(render);
+  }
+
+  // Reset Game Event
+  els.btnJoust.addEventListener('click', () => {
+    if (gameState === 'GAMEOVER') {
+      player.hp = MAX_HP; player.bal = MAX_BAL;
+      enemy.hp = MAX_HP; enemy.bal = MAX_BAL;
+      updateBars();
+      gameState = 'IDLE';
+      els.btnJoust.innerText = "JOUST!";
+      resizeCanvas();
+      els.log.innerHTML = '<div class="log-sys">> New match!</div>';
+    }
+  });
+
+  // Init
+  resizeCanvas();
+  updateBars();
+  requestAnimationFrame(render);
+</script>
+</body>
+</html>

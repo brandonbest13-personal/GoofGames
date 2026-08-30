@@ -47,21 +47,22 @@
     }
 
     .player-hud {
-      background: rgba(15, 23, 42, 0.85);
-      border: 2px solid #334155;
-      padding: 10px;
+      background: rgba(15, 23, 42, 0.4); /* Increased transparency */
+      backdrop-filter: blur(3px); /* Keeps text readable over the terrain */
+      border: 1px solid rgba(51, 65, 85, 0.5); /* Thinner, transparent border */
+      padding: 6px 8px; /* Tighter padding */
       border-radius: 8px;
-      width: 36%;
+      width: 28%; /* Reduced width */
       pointer-events: auto;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 4px; /* Tighter vertical spacing */
     }
     
     .p1-hud { border-color: #38bdf8; box-shadow: 0 0 10px rgba(56, 189, 248, 0.2); }
     .p2-hud { border-color: #ef4444; box-shadow: 0 0 10px rgba(239, 68, 68, 0.2); }
 
-    .name-row { display: flex; justify-content: space-between; font-weight: 800; font-size: 13px; text-transform: uppercase; }
+    .name-row { display: flex; justify-content: space-between; font-weight: 800; font-size: 11px; text-transform: uppercase; }
     .p1-name { color: #38bdf8; }
     .p2-name { color: #ef4444; }
 

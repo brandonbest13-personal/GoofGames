@@ -1,0 +1,877 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>DropBox: Dots & Tetris</title>
+  
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BoxDrop">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0b0e14;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace;
+      touch-action: none;
+      color: #fff;
+    }
+
+    #app {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    #hud {
+      width: 100%;
+      max-width: 500px;
+      padding: 12px 20px 4px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      z-index: 5;
+      font-weight: 700;
+      font-size: 0.95rem;
+      letter-spacing: 1px;
+    }
+
+    .hud-box {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 6px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    #timer-bar-container {
+      width: 100%;
+      max-width: 460px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+
+    #timer-bar {
+      height: 100%;
+      width: 100%;
+      background: #00ff88;
+      transition: width 0.05s linear;
+    }
+
+    #canvas-container {
+      flex: 1;
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+
+    canvas {
+      display: block;
+      background: #111622;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    #action-bar {
+      width: 100%;
+      max-width: 500px;
+      padding: 10px 20px 24px 20px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      z-index: 5;
+    }
+
+    .action-btn {
+      flex: 1;
+      padding: 14px 10px;
+      border: none;
+      border-radius: 14px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      color: #fff;
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.15);
+      transition: transform 0.05s ease;
+    }
+
+    .action-btn:active {
+      transform: scale(0.96);
+      background: #334155;
+    }
+
+    #drop-btn {
+      background: #00ff88;
+      color: #000;
+      border: none;
+      font-weight: 800;
+      box-shadow: 0 0 15px rgba(0,255,136,0.3);
+    }
+
+    .modal {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(11, 14, 20, 0.96);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 20;
+      padding: 24px;
+      text-align: center;
+    }
+
+    .modal-card {
+      width: 100%;
+      max-width: 360px;
+      background: #161d2b;
+      padding: 28px 24px;
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.6);
+    }
+
+    .modal h1 {
+      font-size: 2rem;
+      color: #00ff88;
+      letter-spacing: 2px;
+      margin-bottom: 6px;
+    }
+
+    .modal p.subtitle {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      margin-bottom: 20px;
+    }
+
+    .setting-group {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      font-size: 0.9rem;
+      text-align: left;
+    }
+
+    .setting-group label {
+      color: #e2e8f0;
+      font-weight: 600;
+    }
+
+    select {
+      background: #0b0e14;
+      color: #00ff88;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      padding: 6px 10px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    .toggle-btn-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    .toggle-opt {
+      padding: 6px 12px;
+      background: #0b0e14;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 8px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      color: #94a3b8;
+    }
+
+    .toggle-opt.active {
+      background: #00ff88;
+      color: #000;
+      font-weight: 700;
+      border-color: #00ff88;
+    }
+
+    .start-btn {
+      width: 100%;
+      padding: 14px;
+      margin-top: 10px;
+      background: #00ff88;
+      color: #000;
+      border: none;
+      border-radius: 12px;
+      font-size: 1.1rem;
+      font-weight: 800;
+      cursor: pointer;
+      letter-spacing: 1px;
+      box-shadow: 0 0 20px rgba(0, 255, 136, 0.4);
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <div id="hud">
+    <div class="hud-box">SCORE: <span id="score-val" style="color:#00ff88">0</span></div>
+    <div class="hud-box">NEXT: <span id="next-preview" style="font-size:1.2rem;">—</span></div>
+  </div>
+
+  <div id="timer-bar-container">
+    <div id="timer-bar"></div>
+  </div>
+
+  <div id="canvas-container">
+    <canvas id="gameCanvas"></canvas>
+  </div>
+
+  <div id="action-bar">
+    <button class="action-btn" id="btn-left">◀ Left</button>
+    <button class="action-btn" id="drop-btn">DROP</button>
+    <button class="action-btn" id="btn-right">Right ▶</button>
+  </div>
+
+  <div id="settings-modal" class="modal">
+    <div class="modal-card">
+      <h1>BOXDROP</h1>
+      <p class="subtitle">Tetris meets Dots & Boxes</p>
+
+      <div class="setting-group">
+        <label>Drop Timer (X):</label>
+        <select id="setting-speed">
+          <option value="5">5 Seconds (Chill)</option>
+          <option value="3" selected>3 Seconds (Standard)</option>
+          <option value="2">2 Seconds (Fast)</option>
+          <option value="1">1 Second (Frenzy)</option>
+        </select>
+      </div>
+
+      <div class="setting-group">
+        <label>Speed Acceleration:</label>
+        <div class="toggle-btn-group" id="accel-group">
+          <div class="toggle-opt active" data-val="yes">YES</div>
+          <div class="toggle-opt" data-val="no">NO</div>
+        </div>
+      </div>
+
+      <div class="setting-group">
+        <label>Colors:</label>
+        <div class="toggle-btn-group" id="colors-group">
+          <div class="toggle-opt active" data-val="easy">EASY (2)</div>
+          <div class="toggle-opt" data-val="hard">HARD (3)</div>
+        </div>
+      </div>
+
+      <button class="start-btn" id="start-btn">START GAME</button>
+    </div>
+  </div>
+
+  <div id="gameover-modal" class="modal" style="display:none;">
+    <div class="modal-card">
+      <h1 style="color:#ff3366;">GAME OVER</h1>
+      <p class="subtitle">A piece crossed the top ceiling!</p>
+      <div style="font-size:2rem; font-weight:800; margin:16px 0; color:#00ff88;" id="final-score">0</div>
+      <button class="start-btn" id="restart-btn">PLAY AGAIN</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ==========================================
+  // CONFIGURABLE CONSTANTS
+  // ==========================================
+  const GRID_ROWS = 8;
+  const GRID_COLS = 8;
+
+  const COLOR_PALETTE = {
+    red: '#ff3366',
+    blue: '#00d0ff',
+    green: '#00ff88'
+  };
+
+  let audioCtx = null;
+  function sound(type) {
+    if (!audioCtx) return;
+    try {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      const now = audioCtx.currentTime;
+
+      if (type === 'tick') {
+        osc.frequency.setValueAtTime(420, now);
+        gain.gain.setValueAtTime(0.02, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.025);
+        osc.start(now); osc.stop(now + 0.025);
+      } else if (type === 'lock') {
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(200, now);
+        osc.frequency.exponentialRampToValueAtTime(70, now + 0.1);
+        gain.gain.setValueAtTime(0.1, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        osc.start(now); osc.stop(now + 0.1);
+      } else if (type === 'clear') {
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(523, now);
+        osc.frequency.setValueAtTime(659, now + 0.08);
+        osc.frequency.setValueAtTime(783, now + 0.16);
+        osc.frequency.setValueAtTime(1046, now + 0.24);
+        gain.gain.setValueAtTime(0.15, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        osc.start(now); osc.stop(now + 0.4);
+      } else if (type === 'gameover') {
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(260, now);
+        osc.frequency.exponentialRampToValueAtTime(40, now + 0.4);
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+        osc.start(now); osc.stop(now + 0.4);
+      }
+    } catch(e) {}
+  }
+
+  // ==========================================
+  // GAME STATE
+  // ==========================================
+  let configSpeed = 3.0;
+  let currentDropDuration = 3.0;
+  let configAccel = true;
+  let configColors = ['red', 'blue'];
+
+  let score = 0;
+  let isPlaying = false;
+  let dropTimer = 0;
+  let lastTime = 0;
+
+  let hEdges = [];
+  let vEdges = [];
+
+  let currentPiece = null;
+  let nextPiece = null;
+  let clearingAnimation = null;
+
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const timerBar = document.getElementById('timer-bar');
+  const scoreVal = document.getElementById('score-val');
+  const nextPreview = document.getElementById('next-preview');
+
+  let cellSize = 40;
+  let originX = 20;
+  let originY = 20;
+
+  function initGrid() {
+    hEdges = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS - 1).fill(null));
+    vEdges = Array.from({ length: GRID_ROWS - 1 }, () => Array(GRID_COLS).fill(null));
+    clearingAnimation = null;
+  }
+
+  function resizeCanvas() {
+    const container = document.getElementById('canvas-container');
+    const maxW = Math.min(container.clientWidth - 24, 460);
+    const maxH = Math.min(container.clientHeight - 24, 560);
+    
+    cellSize = Math.floor(Math.min(maxW / (GRID_COLS + 0.5), maxH / (GRID_ROWS + 1.5)));
+    canvas.width = cellSize * (GRID_COLS + 0.5);
+    canvas.height = cellSize * (GRID_ROWS + 1.5);
+    
+    originX = (canvas.width - (GRID_COLS - 1) * cellSize) / 2;
+    originY = cellSize * 1.5;
+  }
+  window.addEventListener('resize', resizeCanvas);
+
+  function randomPiece() {
+    const isH = Math.random() > 0.5;
+    const color = configColors[Math.floor(Math.random() * configColors.length)];
+    const maxCol = isH ? (GRID_COLS - 2) : (GRID_COLS - 1);
+    const initialCol = Math.floor(maxCol / 2);
+    return {
+      type: isH ? 'H' : 'V',
+      color: color,
+      col: initialCol,
+      row: 0,
+      maxCol: maxCol
+    };
+  }
+
+  function canMoveDown(piece) {
+    const { type, row, col } = piece;
+
+    if (type === 'H') {
+      if (row >= GRID_ROWS - 1) return false;
+      const nextR = row + 1;
+      if (hEdges[nextR][col] !== null) return false;
+      if (vEdges[row][col] !== null || vEdges[row][col + 1] !== null) return false;
+      return true;
+    } else {
+      if (row >= GRID_ROWS - 2) return false;
+      const nextR = row + 1;
+      if (vEdges[nextR][col] !== null) return false;
+      const hitLeftH = (col > 0 && hEdges[nextR][col - 1] !== null);
+      const hitRightH = (col < GRID_COLS - 1 && hEdges[nextR][col] !== null);
+      if (hitLeftH || hitRightH) return false;
+      return true;
+    }
+  }
+
+  function canMoveLateral(piece, dir) {
+    const { type, row, col } = piece;
+    const targetCol = col + dir;
+    if (targetCol < 0 || targetCol > piece.maxCol) return false;
+
+    if (type === 'H') {
+      if (hEdges[row][targetCol] !== null) return false;
+      if (dir > 0 && vEdges[row][col + 1] !== null) return false;
+      if (dir < 0 && vEdges[row][col] !== null) return false;
+      return true;
+    } else {
+      if (vEdges[row][targetCol] !== null) return false;
+      if (dir > 0 && (hEdges[row][col] !== null || hEdges[row + 1][col] !== null)) return false;
+      if (dir < 0 && (hEdges[row][targetCol] !== null || hEdges[row + 1][targetCol] !== null)) return false;
+      return true;
+    }
+  }
+
+  function getProjectedRestRow(piece) {
+    let sim = { ...piece };
+    while (canMoveDown(sim)) {
+      sim.row++;
+    }
+    return sim.row;
+  }
+
+  function evaluateBoardForBoxes() {
+    let completedBoxes = [];
+    let edgesToClear = new Set();
+    let totalCells = 0;
+
+    for (let r1 = 0; r1 < GRID_ROWS - 1; r1++) {
+      for (let c1 = 0; c1 < GRID_COLS - 1; c1++) {
+        for (let r2 = r1; r2 < GRID_ROWS - 1; r2++) {
+          for (let c2 = c1; c2 < GRID_COLS - 1; c2++) {
+            const color = getBoxUniformColor(r1, c1, r2, c2);
+            if (color) {
+              const count = (r2 - r1 + 1) * (c2 - c1 + 1);
+              totalCells += count;
+              completedBoxes.push({ r1, c1, r2, c2, color });
+
+              for (let r = r1; r <= r2 + 1; r++) {
+                for (let c = c1; c <= c2; c++) {
+                  if (r === r1 || r === r2 + 1) edgesToClear.add(`H_${r}_${c}`);
+                }
+              }
+              for (let r = r1; r <= r2; r++) {
+                for (let c = c1; c <= c2 + 1; c++) {
+                  if (c === c1 || c === c2 + 1) edgesToClear.add(`V_${r}_${c}`);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (completedBoxes.length > 0) {
+      sound('clear');
+      score += Math.pow(2, totalCells);
+      scoreVal.textContent = score;
+
+      clearingAnimation = {
+        boxes: completedBoxes,
+        edges: Array.from(edgesToClear),
+        startTime: performance.now(),
+        duration: 280
+      };
+    } else {
+      spawnNextPiece();
+    }
+  }
+
+  function getBoxUniformColor(r1, c1, r2, c2) {
+    let targetColor = null;
+
+    for (let r = r1; r <= r2 + 1; r += (r2 - r1 + 1)) {
+      for (let c = c1; c <= c2; c++) {
+        const edge = hEdges[r][c];
+        if (!edge) return null;
+        if (!targetColor) targetColor = edge;
+        if (edge !== targetColor) return null;
+      }
+    }
+
+    for (let r = r1; r <= r2; r++) {
+      for (let c = c1; c <= c2 + 1; c += (c2 - c1 + 1)) {
+        const edge = vEdges[r][c];
+        if (!edge) return null;
+        if (!targetColor) targetColor = edge;
+        if (edge !== targetColor) return null;
+      }
+    }
+
+    return targetColor;
+  }
+
+  function finishClearing() {
+    if (!clearingAnimation) return;
+
+    clearingAnimation.edges.forEach(key => {
+      const [type, r, c] = key.split('_');
+      if (type === 'H') hEdges[+r][+c] = null;
+      if (type === 'V') vEdges[+r][+c] = null;
+    });
+
+    clearingAnimation = null;
+    applyCascadeGravity();
+    spawnNextPiece();
+  }
+
+  function applyCascadeGravity() {
+    for (let pass = 0; pass < GRID_ROWS; pass++) {
+      for (let r = GRID_ROWS - 3; r >= 0; r--) {
+        for (let c = 0; c < GRID_COLS; c++) {
+          if (vEdges[r][c] !== null && vEdges[r + 1][c] === null) {
+            const hitLeft = (c > 0 && hEdges[r + 1][c - 1] !== null);
+            const hitRight = (c < GRID_COLS - 1 && hEdges[r + 1][c] !== null);
+            if (!hitLeft && !hitRight) {
+              vEdges[r + 1][c] = vEdges[r][c];
+              vEdges[r][c] = null;
+            }
+          }
+        }
+      }
+
+      for (let r = GRID_ROWS - 2; r >= 0; r--) {
+        for (let c = 0; c < GRID_COLS - 1; c++) {
+          if (hEdges[r][c] !== null && hEdges[r + 1][c] === null) {
+            if (vEdges[r][c] === null && vEdges[r][c + 1] === null) {
+              hEdges[r + 1][c] = hEdges[r][c];
+              hEdges[r][c] = null;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  function lockPiece() {
+    if (!currentPiece) return;
+
+    const { type, color, row, col } = currentPiece;
+
+    if (type === 'H') {
+      if (hEdges[row][col] !== null) {
+        gameOver();
+        return;
+      }
+      hEdges[row][col] = color;
+    } else {
+      if (vEdges[row][col] !== null) {
+        gameOver();
+        return;
+      }
+      vEdges[row][col] = color;
+    }
+
+    sound('lock');
+    currentPiece = null;
+
+    if (configAccel && currentDropDuration > 0.8) {
+      currentDropDuration *= 0.985;
+    }
+
+    evaluateBoardForBoxes();
+  }
+
+  function spawnNextPiece() {
+    currentPiece = nextPiece || randomPiece();
+    nextPiece = randomPiece();
+
+    nextPreview.innerHTML = nextPiece.type === 'H' ? '&#9644;' : '&#10072;';
+    nextPreview.style.color = COLOR_PALETTE[nextPiece.color];
+
+    currentPiece.row = 0;
+    currentPiece.col = Math.floor(currentPiece.maxCol / 2);
+
+    const isBlocked = (currentPiece.type === 'H' && hEdges[0][currentPiece.col] !== null) ||
+                      (currentPiece.type === 'V' && vEdges[0][currentPiece.col] !== null);
+    if (isBlocked) {
+      gameOver();
+      return;
+    }
+
+    dropTimer = currentDropDuration;
+  }
+
+  function hardDrop() {
+    if (!isPlaying || !currentPiece) return;
+    currentPiece.row = getProjectedRestRow(currentPiece);
+    lockPiece();
+  }
+
+  function gameOver() {
+    isPlaying = false;
+    sound('gameover');
+    document.getElementById('final-score').textContent = score;
+    document.getElementById('gameover-modal').style.display = 'flex';
+  }
+
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    for (let r = 0; r < GRID_ROWS; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        const x = originX + c * cellSize;
+        const y = originY + r * cellSize;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+        ctx.beginPath();
+        ctx.arc(x, y, 3.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    if (clearingAnimation) {
+      const elapsed = performance.now() - clearingAnimation.startTime;
+      const alpha = Math.max(0, 1 - elapsed / clearingAnimation.duration);
+
+      clearingAnimation.boxes.forEach(b => {
+        const bx = originX + b.c1 * cellSize;
+        const by = originY + b.r1 * cellSize;
+        const bw = (b.c2 - b.c1 + 1) * cellSize;
+        const bh = (b.r2 - b.r1 + 1) * cellSize;
+        ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.45})`;
+        ctx.fillRect(bx, by, bw, bh);
+      });
+
+      if (elapsed >= clearingAnimation.duration) {
+        finishClearing();
+      }
+    }
+
+    for (let r = 0; r < GRID_ROWS; r++) {
+      for (let c = 0; c < GRID_COLS - 1; c++) {
+        const color = hEdges[r][c];
+        if (color) {
+          drawSegment(
+            originX + c * cellSize, originY + r * cellSize,
+            originX + (c + 1) * cellSize, originY + r * cellSize,
+            COLOR_PALETTE[color], 6
+          );
+        }
+      }
+    }
+
+    for (let r = 0; r < GRID_ROWS - 1; r++) {
+      for (let c = 0; c < GRID_COLS; c++) {
+        const color = vEdges[r][c];
+        if (color) {
+          drawSegment(
+            originX + c * cellSize, originY + r * cellSize,
+            originX + c * cellSize, originY + (r + 1) * cellSize,
+            COLOR_PALETTE[color], 6
+          );
+        }
+      }
+    }
+
+    if (currentPiece && isPlaying && !clearingAnimation) {
+      const { type, color, row, col } = currentPiece;
+      const pieceColor = COLOR_PALETTE[color];
+      const restRow = getProjectedRestRow(currentPiece);
+
+      if (restRow > row) {
+        if (type === 'H') {
+          drawSegment(
+            originX + col * cellSize, originY + restRow * cellSize,
+            originX + (col + 1) * cellSize, originY + restRow * cellSize,
+            pieceColor, 5, [6, 4]
+          );
+        } else {
+          drawSegment(
+            originX + col * cellSize, originY + restRow * cellSize,
+            originX + col * cellSize, originY + (restRow + 1) * cellSize,
+            pieceColor, 5, [6, 4]
+          );
+        }
+      }
+
+      if (type === 'H') {
+        drawSegment(
+          originX + col * cellSize, originY + row * cellSize,
+          originX + (col + 1) * cellSize, originY + row * cellSize,
+          pieceColor, 7
+        );
+      } else {
+        drawSegment(
+          originX + col * cellSize, originY + row * cellSize,
+          originX + col * cellSize, originY + (row + 1) * cellSize,
+          pieceColor, 7
+        );
+      }
+    }
+  }
+
+  function drawSegment(x1, y1, x2, y2, color, width, dash = []) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 8;
+    ctx.setLineDash(dash);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function moveLeft() {
+    if (!isPlaying || !currentPiece || clearingAnimation) return;
+    if (canMoveLateral(currentPiece, -1)) {
+      currentPiece.col--;
+      sound('tick');
+    }
+  }
+
+  function moveRight() {
+    if (!isPlaying || !currentPiece || clearingAnimation) return;
+    if (canMoveLateral(currentPiece, 1)) {
+      currentPiece.col++;
+      sound('tick');
+    }
+  }
+
+  document.getElementById('btn-left').addEventListener('click', moveLeft);
+  document.getElementById('btn-right').addEventListener('click', moveRight);
+  document.getElementById('drop-btn').addEventListener('click', hardDrop);
+
+  canvas.addEventListener('pointerdown', handlePointer);
+  canvas.addEventListener('pointermove', (e) => {
+    if (e.buttons > 0) handlePointer(e);
+  });
+
+  function handlePointer(e) {
+    if (!isPlaying || !currentPiece || clearingAnimation) return;
+    const rect = canvas.getBoundingClientRect();
+    const touchX = e.clientX - rect.left;
+    let target = Math.round((touchX - originX - cellSize / 2) / cellSize);
+    target = Math.max(0, Math.min(currentPiece.maxCol, target));
+
+    while (currentPiece.col < target) {
+      if (!canMoveLateral(currentPiece, 1)) break;
+      currentPiece.col++;
+      sound('tick');
+    }
+    while (currentPiece.col > target) {
+      if (!canMoveLateral(currentPiece, -1)) break;
+      currentPiece.col--;
+      sound('tick');
+    }
+  }
+
+  function loop(timestamp) {
+    if (!lastTime) lastTime = timestamp;
+    const dt = (timestamp - lastTime) / 1000;
+    lastTime = timestamp;
+
+    if (isPlaying && currentPiece && !clearingAnimation) {
+      dropTimer -= dt;
+      const progress = Math.max(0, dropTimer / currentDropDuration);
+      timerBar.style.width = `${progress * 100}%`;
+
+      const totalSteps = currentPiece.type === 'H' ? (GRID_ROWS - 1) : (GRID_ROWS - 2);
+      const targetRow = Math.min(
+        getProjectedRestRow(currentPiece),
+        Math.floor((1 - progress) * totalSteps)
+      );
+
+      while (currentPiece.row < targetRow && canMoveDown(currentPiece)) {
+        currentPiece.row++;
+      }
+
+      if (dropTimer <= 0) {
+        if (canMoveDown(currentPiece)) {
+          currentPiece.row++;
+          dropTimer = currentDropDuration / (totalSteps || 1);
+        } else {
+          lockPiece();
+        }
+      }
+    }
+
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  document.querySelectorAll('#accel-group .toggle-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#accel-group .toggle-opt').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      configAccel = btn.dataset.val === 'yes';
+    });
+  });
+
+  document.querySelectorAll('#colors-group .toggle-opt').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#colors-group .toggle-opt').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      configColors = btn.dataset.val === 'easy' ? ['red', 'blue'] : ['red', 'blue', 'green'];
+    });
+  });
+
+  function startGame() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    configSpeed = parseFloat(document.getElementById('setting-speed').value);
+    currentDropDuration = configSpeed;
+    score = 0;
+    scoreVal.textContent = '0';
+    
+    initGrid();
+    resizeCanvas();
+    
+    document.getElementById('settings-modal').style.display = 'none';
+    document.getElementById('gameover-modal').style.display = 'none';
+    
+    isPlaying = true;
+    lastTime = performance.now();
+    nextPiece = randomPiece();
+    spawnNextPiece();
+    requestAnimationFrame(loop);
+  }
+
+  document.getElementById('start-btn').addEventListener('click', startGame);
+  document.getElementById('restart-btn').addEventListener('click', () => {
+    document.getElementById('settings-modal').style.display = 'flex';
+    document.getElementById('gameover-modal').style.display = 'none';
+  });
+
+  // Initial setup view setup
+  resizeCanvas();
+  draw();
+</script>
+</body>
+</html>
